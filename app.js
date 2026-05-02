@@ -6,7 +6,7 @@ let streamLocal;
 let chamadaAtiva;
 let onlineUsers = [];
 
-const backendUrl = 'https://radio2-yocz.onrender.com/';
+const backendUrl = 'https://radio2-yocz.onrender.com';
 const backendUrlObj = new URL(backendUrl);
 
 const meuNomeInput = document.getElementById('meu-nome-input');
