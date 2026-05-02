@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Radio PTT</title>
+
+<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * wss: ws:; sync-xhr: 'none';">
+
+<title>Radio PTT Profissional</title>
 
 <style>
   body {
@@ -64,24 +67,27 @@
     background: #1e293b;
     border-radius: 10px;
     font-size: 16px;
-    cursor: pointer;
-    transition: all 0.2s ease;
     border: 1px solid transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.3s;
+  }
+
+  li.talking {
+    background: #7f1d1d;
+    border-color: #ef4444;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
   }
 
   li:last-child {
     margin-bottom: 0;
-  }
-
-  li:hover {
-    background: #334155;
-  }
-
-  li.active {
-    background: #16a34a;
-    border-color: #22c55e;
-    font-weight: bold;
-    box-shadow: 0 0 10px rgba(22, 163, 74, 0.4);
   }
 
   .empty-list {
@@ -91,6 +97,7 @@
     font-style: italic;
     background: #1e293b;
     border-radius: 10px;
+    display: block;
   }
 
   .ptt-container {
@@ -104,9 +111,9 @@
 
   .ptt {
     width: 65vw;
-    max-width: 220px;
+    max-width: 210px;
     height: 65vw;
-    max-height: 220px;
+    max-height: 210px;
     border-radius: 50%;
     border: 6px solid #450a0a;
     font-size: 18px;
@@ -127,17 +134,25 @@
     transform: scale(0.96);
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   }
+
+  .ptt.busy {
+    background: #4b5563 !important;
+    border-color: #1f2937 !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed;
+    transform: none !important;
+  }
 </style>
 </head>
 
 <body>
 
 <div class="container">
-  <h2>📡 Rádio PTT</h2>
+  <h2>📡 Rádio PTT (Grupo)</h2>
   <div id="status">Conectando ao servidor...</div>
   
   <div class="user-list-container">
-    <div class="list-title">Usuários Conectados:</div>
+    <div class="list-title">Membros na Escuta:</div>
     <ul id="users">
       <li class="empty-list">Aguardando conexão...</li>
     </ul>
@@ -145,7 +160,7 @@
 </div>
 
 <div class="ptt-container">
-  <button id="talk" class="ptt">FALAR</button>
+  <button id="talk" class="ptt">FALAR NO GRUPO</button>
 </div>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -162,9 +177,10 @@ const socket = io(BACKEND_URL, {
 
 let myPeer;
 let myStream;
-let currentCall;
-let currentTarget = null;
+let activeCalls = [];
+let onlineUsers = [];
 let isTalking = false;
+let isBusy = false;
 
 const statusEl = document.getElementById('status');
 const usersEl = document.getElementById('users');
@@ -172,18 +188,31 @@ const talkBtn = document.getElementById('talk');
 
 const name = prompt("Seu nome:") || "Usuário-" + Math.floor(1000 + Math.random() * 9000);
 
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+function playBeep(freq, duration) {
+  try {
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.value = 0.1;
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    osc.start();
+    setTimeout(() => osc.stop(), duration);
+  } catch (e) { console.error(e); }
+}
+
 socket.on('connect', () => {
-  console.log("🟢 Socket.io conectado! ID:", socket.id);
+  console.log("🟢 Socket.io conectado!");
   statusEl.innerText = `Online como: ${name}`;
-  
   if (myPeer && myPeer.id) {
     socket.emit('register', { peerId: myPeer.id, name });
   }
 });
 
-socket.on('connect_error', (err) => {
-  console.error("🔴 Erro de conexão no Socket.io:", err.message);
-  statusEl.innerText = "Erro ao conectar no servidor. Tentando novamente...";
+socket.on('connect_error', () => {
+  statusEl.innerText = "Erro ao conectar no servidor. Reconectando...";
 });
 
 navigator.mediaDevices.getUserMedia({ audio: true })
@@ -196,9 +225,7 @@ navigator.mediaDevices.getUserMedia({ audio: true })
     port: 443,
     path: "/peerjs",
     secure: true,
-    config: {
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    }
+    config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
   });
 
   myPeer.on('open', (id) => {
@@ -210,7 +237,6 @@ navigator.mediaDevices.getUserMedia({ audio: true })
   });
 
   myPeer.on('call', (call) => {
-    console.log("📞 Recebendo áudio...");
     call.answer(myStream);
     call.on('stream', (remoteStream) => {
       playAudio(remoteStream);
@@ -219,89 +245,85 @@ navigator.mediaDevices.getUserMedia({ audio: true })
 
 }).catch(err => {
   statusEl.innerText = "Erro: Microfone bloqueado.";
-  console.error(err);
 });
 
-// Atualiza lista de usuários recebida do back-end
 socket.on('presence', (users) => {
-  console.log("👥 Lista de usuários recebida:", users);
   usersEl.innerHTML = '';
+  onlineUsers = users.filter(u => (u.peerId || u.id) !== myPeer?.id);
 
-  // Filtra você mesmo usando tanto peerId quanto id
-  const otherUsers = users.filter(u => {
-    const id = u.peerId || u.id;
-    return id !== myPeer?.id;
-  });
-
-  if (otherUsers.length === 0) {
-    usersEl.innerHTML = '<li class="empty-list">Nenhum outro usuário online.</li>';
-    currentTarget = null;
+  if (onlineUsers.length === 0) {
+    usersEl.innerHTML = '<li class="empty-list">Nenhum outro membro online.</li>';
     return;
   }
 
-  otherUsers.forEach(user => {
+  onlineUsers.forEach(user => {
     const li = document.createElement('li');
-    li.innerText = user.name || "Sem Nome";
-
-    // Pega o ID válido que o seu back-end enviou (peerId ou id)
-    const targetId = user.peerId || user.id;
-
-    if (currentTarget === targetId) {
-      li.classList.add('active');
+    li.id = `user-${user.peerId || user.id}`;
+    
+    if (user.isTalking) {
+      li.classList.add('talking');
+      li.innerHTML = `<span>🎤 <b>${user.name}</b></span> <small>TRANSMITINDO...</small>`;
+    } else {
+      li.innerHTML = `<span>🟢 ${user.name || "Sem Nome"}</span>`;
     }
-
-    li.onclick = () => {
-      // SALVA O ID CORRETO NO TARGET
-      currentTarget = targetId;
-      console.log("🎯 Alvo selecionado para transmissão:", currentTarget);
-
-      document.querySelectorAll('#users li').forEach(el => el.classList.remove('active'));
-      li.classList.add('active');
-    };
-
+    
     usersEl.appendChild(li);
   });
 });
 
-function startCall(peerId) {
+socket.on('user_talking', (data) => {
+  if (data.peerId !== myPeer?.id) {
+    isBusy = data.isTalking;
+    if (isBusy) {
+      talkBtn.classList.add('busy');
+      talkBtn.innerText = `${data.name.toUpperCase()} FALANDO...`;
+    } else {
+      talkBtn.classList.remove('busy');
+      talkBtn.innerText = "FALAR NO GRUPO";
+    }
+  }
+});
+
+function broadcastToGroup() {
   if (!myStream || !myPeer) return;
-  console.log(`📡 Iniciando transmissão para o Peer: ${peerId}`);
-  const call = myPeer.call(peerId, myStream);
-  
-  call.on('stream', (remoteStream) => {
-    playAudio(remoteStream);
+  onlineUsers.forEach(user => {
+    const targetId = user.peerId || user.id;
+    if (targetId) {
+      const call = myPeer.call(targetId, myStream);
+      call.on('stream', (remoteStream) => {
+        playAudio(remoteStream);
+      });
+      activeCalls.push(call);
+    }
   });
-  
-  currentCall = call;
 }
 
 function playAudio(stream) {
+  const existingAudio = document.getElementById(stream.id);
+  if (existingAudio) return;
+
   const audio = document.createElement('audio');
+  audio.id = stream.id;
   audio.srcObject = stream;
   audio.play().catch(e => console.error("Erro no áudio:", e));
 }
 
 function startTalking(e) {
   if (e) e.preventDefault();
-  
-  // Confirmação via console do valor do target
-  console.log("Botão Apertado. Target atual:", currentTarget);
-
-  if (!currentTarget) {
-    alert("Selecione um usuário na lista primeiro!");
-    return;
-  }
-
-  if (isTalking) return;
+  if (isBusy || onlineUsers.length === 0 || isTalking) return;
   isTalking = true;
+
+  playBeep(800, 100);
 
   if (myStream && myStream.getAudioTracks()[0]) {
     myStream.getAudioTracks()[0].enabled = true;
   }
   
-  startCall(currentTarget);
+  broadcastToGroup();
+  socket.emit('talking_state', { isTalking: true, name });
+
   talkBtn.classList.add('active');
-  talkBtn.innerText = "TRANSMITINDO";
+  talkBtn.innerText = "TRANSMITINDO AO VIVO";
 }
 
 function stopTalking(e) {
@@ -309,19 +331,19 @@ function stopTalking(e) {
   if (!isTalking) return;
   isTalking = false;
 
-  console.log("Botão Solto. Parando transmissão.");
+  playBeep(600, 120);
 
   if (myStream && myStream.getAudioTracks()[0]) {
     myStream.getAudioTracks()[0].enabled = false;
   }
 
-  if (currentCall) {
-    currentCall.close();
-    currentCall = null;
-  }
+  activeCalls.forEach(call => { if (call.open) call.close(); });
+  activeCalls = [];
+
+  socket.emit('talking_state', { isTalking: false, name });
 
   talkBtn.classList.remove('active');
-  talkBtn.innerText = "FALAR";
+  talkBtn.innerText = "FALAR NO GRUPO";
 }
 
 talkBtn.addEventListener('pointerdown', startTalking);
