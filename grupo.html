@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Radio PTT em Grupo</title>
+<title>Radio PTT Profissional</title>
 
 <style>
   body {
@@ -65,6 +65,22 @@
     border-radius: 10px;
     font-size: 16px;
     border: 1px solid transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.3s;
+  }
+
+  li.talking {
+    background: #7f1d1d;
+    border-color: #ef4444;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
   }
 
   li:last-child {
@@ -78,6 +94,7 @@
     font-style: italic;
     background: #1e293b;
     border-radius: 10px;
+    display: block;
   }
 
   .ptt-container {
@@ -91,9 +108,9 @@
 
   .ptt {
     width: 65vw;
-    max-width: 220px;
+    max-width: 210px;
     height: 65vw;
-    max-height: 220px;
+    max-height: 210px;
     border-radius: 50%;
     border: 6px solid #450a0a;
     font-size: 18px;
@@ -114,6 +131,15 @@
     transform: scale(0.96);
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   }
+
+  /* Estado quando outro usuário está falando */
+  .ptt.busy {
+    background: #4b5563 !important;
+    border-color: #1f2937 !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed;
+    transform: none !important;
+  }
 </style>
 </head>
 
@@ -124,7 +150,7 @@
   <div id="status">Conectando ao servidor...</div>
   
   <div class="user-list-container">
-    <div class="list-title">Outros Membros na Escuta:</div>
+    <div class="list-title">Membros na Escuta:</div>
     <ul id="users">
       <li class="empty-list">Aguardando conexão...</li>
     </ul>
@@ -149,9 +175,10 @@ const socket = io(BACKEND_URL, {
 
 let myPeer;
 let myStream;
-let activeCalls = []; // Array para guardar todas as chamadas ativas do grupo
-let onlineUsers = []; // Array de usuários online recebidos do backend
+let activeCalls = [];
+let onlineUsers = [];
 let isTalking = false;
+let isBusy = false; // Bloqueia se outra pessoa estiver falando
 
 const statusEl = document.getElementById('status');
 const usersEl = document.getElementById('users');
@@ -159,18 +186,32 @@ const talkBtn = document.getElementById('talk');
 
 const name = prompt("Seu nome:") || "Usuário-" + Math.floor(1000 + Math.random() * 9000);
 
+// Sons de Feedback PTT
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+function playBeep(freq, duration) {
+  try {
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    gain.gain.value = 0.1;
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+    osc.start();
+    setTimeout(() => osc.stop(), duration);
+  } catch (e) { console.error(e); }
+}
+
 socket.on('connect', () => {
-  console.log("🟢 Socket.io conectado! ID:", socket.id);
+  console.log("🟢 Socket.io conectado!");
   statusEl.innerText = `Online como: ${name}`;
-  
   if (myPeer && myPeer.id) {
     socket.emit('register', { peerId: myPeer.id, name });
   }
 });
 
-socket.on('connect_error', (err) => {
-  console.error("🔴 Erro de conexão no Socket.io:", err.message);
-  statusEl.innerText = "Erro ao conectar no servidor. Tentando novamente...";
+socket.on('connect_error', () => {
+  statusEl.innerText = "Erro ao conectar no servidor. Reconectando...";
 });
 
 navigator.mediaDevices.getUserMedia({ audio: true })
@@ -183,9 +224,7 @@ navigator.mediaDevices.getUserMedia({ audio: true })
     port: 443,
     path: "/peerjs",
     secure: true,
-    config: {
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    }
+    config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
   });
 
   myPeer.on('open', (id) => {
@@ -196,9 +235,7 @@ navigator.mediaDevices.getUserMedia({ audio: true })
     }
   });
 
-  // Receber chamadas de qualquer membro do grupo
   myPeer.on('call', (call) => {
-    console.log("📞 Recebendo áudio do grupo...");
     call.answer(myStream);
     call.on('stream', (remoteStream) => {
       playAudio(remoteStream);
@@ -207,15 +244,13 @@ navigator.mediaDevices.getUserMedia({ audio: true })
 
 }).catch(err => {
   statusEl.innerText = "Erro: Microfone bloqueado.";
-  console.error(err);
 });
 
-// Atualiza lista de usuários
+// Presença e status de transmissão
 socket.on('presence', (users) => {
-  console.log("👥 Lista de usuários em tempo real:", users);
+  console.log("👥 Usuários ativos:", users);
   usersEl.innerHTML = '';
 
-  // Filtra para remover você mesmo da lista visual
   onlineUsers = users.filter(u => {
     const id = u.peerId || u.id;
     return id !== myPeer?.id;
@@ -228,61 +263,81 @@ socket.on('presence', (users) => {
 
   onlineUsers.forEach(user => {
     const li = document.createElement('li');
-    li.innerText = `🟢 ${user.name || "Sem Nome"}`;
+    li.id = `user-${user.peerId || user.id}`;
+    
+    // Altera estilo se o usuário estiver falando
+    if (user.isTalking) {
+      li.classList.add('talking');
+      li.innerHTML = `<span>🎤 <b>${user.name}</b></span> <small>TRANSMITINDO...</small>`;
+    } else {
+      li.innerHTML = `<span>🟢 ${user.name || "Sem Nome"}</span>`;
+    }
+    
     usersEl.appendChild(li);
   });
 });
 
-// Função para transmitir para TODOS os usuários online
+// Escuta quando alguém do grupo começa/para de falar para bloquear o PTT
+socket.on('user_talking', (data) => {
+  if (data.peerId !== myPeer?.id) {
+    isBusy = data.isTalking;
+    if (isBusy) {
+      talkBtn.classList.add('busy');
+      talkBtn.innerText = `${data.name.toUpperCase()} FALANDO...`;
+    } else {
+      talkBtn.classList.remove('busy');
+      talkBtn.innerText = "FALAR NO GRUPO";
+    }
+  }
+});
+
 function broadcastToGroup() {
   if (!myStream || !myPeer) return;
-
-  console.log(`📡 Transmitindo para ${onlineUsers.length} usuários...`);
   
   onlineUsers.forEach(user => {
     const targetId = user.peerId || user.id;
     if (targetId) {
       const call = myPeer.call(targetId, myStream);
-      
       call.on('stream', (remoteStream) => {
         playAudio(remoteStream);
       });
-
-      activeCalls.push(call); // Guarda a chamada para encerrar depois
+      activeCalls.push(call);
     }
   });
 }
 
 function playAudio(stream) {
-  // Evita criar múltiplos elementos de áudio duplicados
   const existingAudio = document.getElementById(stream.id);
   if (existingAudio) return;
 
   const audio = document.createElement('audio');
   audio.id = stream.id;
   audio.srcObject = stream;
-  audio.play().catch(e => console.error("Erro ao reproduzir o áudio:", e));
+  audio.play().catch(e => console.error("Erro no áudio:", e));
 }
 
-// 🔴 Iniciar fala em grupo
+// 🔴 Começar a falar
 function startTalking(e) {
   if (e) e.preventDefault();
 
+  if (isBusy) return; // Bloqueia se o canal estiver ocupado
   if (onlineUsers.length === 0) {
-    alert("Não há outros usuários online no grupo para ouvir você.");
+    alert("Não há ninguém no grupo para ouvir.");
     return;
   }
-
   if (isTalking) return;
   isTalking = true;
 
-  // Ativa o microfone
+  playBeep(800, 100); // Bip inicial
+
   if (myStream && myStream.getAudioTracks()[0]) {
     myStream.getAudioTracks()[0].enabled = true;
   }
   
-  // Liga para todo mundo
   broadcastToGroup();
+
+  // Avisa o servidor que estou falando para bloquear os outros
+  socket.emit('talking_state', { isTalking: true, name });
 
   talkBtn.classList.add('active');
   talkBtn.innerText = "TRANSMITINDO AO VIVO";
@@ -294,20 +349,17 @@ function stopTalking(e) {
   if (!isTalking) return;
   isTalking = false;
 
-  console.log("Parando transmissão do grupo.");
+  playBeep(600, 120); // Bip final
 
-  // Desativa o microfone (muta)
   if (myStream && myStream.getAudioTracks()[0]) {
     myStream.getAudioTracks()[0].enabled = false;
   }
 
-  // Desconecta todas as chamadas ativas
-  activeCalls.forEach(call => {
-    if (call.open) {
-      call.close();
-    }
-  });
-  activeCalls = []; // Limpa a lista de chamadas
+  activeCalls.forEach(call => { if (call.open) call.close(); });
+  activeCalls = [];
+
+  // Avisa o servidor que parei de falar
+  socket.emit('talking_state', { isTalking: false, name });
 
   talkBtn.classList.remove('active');
   talkBtn.innerText = "FALAR NO GRUPO";
