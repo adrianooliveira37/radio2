@@ -1,98 +1,334 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PTT Web - Rádio</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
-    .container { max-width: 520px; margin: 0 auto; background: #1e1e1e; padding: 24px; border-radius: 14px; box-shadow: 0px 6px 18px rgba(0,0,0,0.6); }
-    input, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; font-size: 16px; box-sizing: border-box; }
-    input { background: #333; color: white; }
-    button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
-    button:active { background: #0056b3; }
-    .tiny-btn { display: inline-block; width: auto; padding: 6px 12px; font-size: 14px; margin-left: 10px; }
-    
-    .lista-contatos { list-style: none; padding: 0; margin: 15px 0 0; }
-    .lista-contatos li { background: #272727; padding: 14px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .lista-contatos .info { text-align: left; flex: 1; }
-    .lista-contatos button { width: auto; margin: 0; padding: 8px 16px; font-size: 14px; background: #28a745; }
-    .lista-contatos button:active { background: #1e7e34; }
-    
-    .status { color: #28a745; font-weight: bold; }
-    .empty-text { color: #999; font-size: 14px; margin: 10px 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radio PTT</title>
 
-    /* --- POP-UP MODAL --- */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(4px);
-      z-index: 1000;
-      align-items: center; justify-content: center;
-    }
-    .modal-overlay.ativa { display: flex; }
-    .modal-content {
-      background: #1e1e1e; width: 90%; max-width: 400px; padding: 30px;
-      border-radius: 20px; box-shadow: 0px 10px 30px rgba(0,0,0,0.8);
-      border: 1px solid #333; animation: zoomIn 0.2s ease-out;
-    }
-    @keyframes zoomIn {
-      from { transform: scale(0.8); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-    }
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #0f172a;
+    color: white;
+    margin: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
 
-    #btn-ptt { 
-      background: #dc3545; height: 120px; border-radius: 50%; width: 120px; 
-      margin: 25px auto; display: flex; align-items: center; justify-content: center; 
-      cursor: pointer; user-select: none; transition: transform 0.1s ease, background 0.2s ease; 
-      font-weight: bold; font-size: 18px; box-shadow: 0 0 15px rgba(220, 53, 69, 0.4);
-    }
-    #btn-ptt.active { background: #a71d2a; transform: scale(0.96); }
-    #btn-ptt:active { transform: scale(0.92); }
+  .container {
+    padding: 15px;
+    max-width: 500px;
+    margin: auto;
+  }
 
-    .btn-voltar { background: #444; margin-top: 15px; }
-    .btn-voltar:hover { background: #555; }
-  </style>
+  h2 {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  #status {
+    text-align: center;
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 20px;
+    background: #1e293b;
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .user-list-container {
+    background: #111827;
+    border-radius: 12px;
+    padding: 10px;
+    border: 1px solid #374151;
+  }
+
+  .list-title {
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    padding-left: 5px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 35vh;
+    overflow-y: auto;
+  }
+
+  li {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #1e293b;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+
+  li:last-child {
+    margin-bottom: 0;
+  }
+
+  li:hover {
+    background: #334155;
+  }
+
+  li.active {
+    background: #16a34a;
+    border-color: #22c55e;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(22, 163, 74, 0.4);
+  }
+
+  .empty-list {
+    text-align: center;
+    color: #64748b;
+    padding: 15px;
+    font-style: italic;
+    background: #1e293b;
+    border-radius: 10px;
+  }
+
+  .ptt-container {
+    position: fixed;
+    bottom: 30px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .ptt {
+    width: 65vw;
+    max-width: 220px;
+    height: 65vw;
+    max-height: 220px;
+    border-radius: 50%;
+    border: 6px solid #450a0a;
+    font-size: 18px;
+    font-weight: bold;
+    background: #dc2626;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    transition: background 0.1s, transform 0.05s;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .ptt:active, .ptt.active {
+    background: #16a34a;
+    border-color: #052e16;
+    transform: scale(0.96);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <h2>📻 Rádio PTT Web</h2>
-    
-    <div id="identificacao">
-      <input type="text" id="meu-nome-input" placeholder="Digite seu nome (Ex: Portaria, Suporte)">
-      <button id="btn-salvar-nome">Salvar meu Nome</button>
-    </div>
 
-    <p style="font-size: 14px; color: #aaa;">
-      Identificado como: <strong id="meu-nome-display" class="status">Nenhum</strong>
-    </p>
-
-    <hr>
-
-    <div id="sessao-selecao">
-      <h3>Dispositivos Online</h3>
-      <p id="online-status" class="empty-text">Total online: <span id="online-count">0</span></p>
-      <ul id="lista-contatos" class="lista-contatos"></ul>
-    </div>
-
-    <div id="sessao-falar" class="modal-overlay">
-      <div class="modal-content">
-        <p id="status-conexao" class="status">Status: Aguardando</p>
-        <p id="contato-selecionado" class="empty-text"></p>
-
-        <div id="btn-ptt">PTT</div>
-
-        <button id="btn-voltar-lista" class="btn-voltar">⬅ Fechar / Voltar</button>
-      </div>
-    </div>
-
-    <audio id="audio-recebido" autoplay></audio>
+<div class="container">
+  <h2>📡 Rádio PTT</h2>
+  <div id="status">Conectando ao servidor...</div>
+  
+  <div class="user-list-container">
+    <div class="list-title">Usuários Conectados:</div>
+    <ul id="users">
+      <li class="empty-list">Aguardando conexão...</li>
+    </ul>
   </div>
+</div>
 
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script src="app.js"></script>
+<div class="ptt-container">
+  <button id="talk" class="ptt">FALAR</button>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+<script>
+const BACKEND_URL = "https://radio2-yocz.onrender.com";
+
+const socket = io(BACKEND_URL, {
+  transports: ["polling", "websocket"],
+  timeout: 20000,
+  forceNew: true
+});
+
+let myPeer;
+let myStream;
+let currentCall;
+let currentTarget = null;
+let isTalking = false;
+
+const statusEl = document.getElementById('status');
+const usersEl = document.getElementById('users');
+const talkBtn = document.getElementById('talk');
+
+const name = prompt("Seu nome:") || "Usuário-" + Math.floor(1000 + Math.random() * 9000);
+
+socket.on('connect', () => {
+  console.log("🟢 Socket.io conectado! ID:", socket.id);
+  statusEl.innerText = `Online como: ${name}`;
+  
+  if (myPeer && myPeer.id) {
+    socket.emit('register', { peerId: myPeer.id, name });
+  }
+});
+
+socket.on('connect_error', (err) => {
+  console.error("🔴 Erro de conexão no Socket.io:", err.message);
+  statusEl.innerText = "Erro ao conectar no servidor. Tentando novamente...";
+});
+
+navigator.mediaDevices.getUserMedia({ audio: true })
+.then(stream => {
+  myStream = stream;
+  myStream.getAudioTracks()[0].enabled = false;
+
+  myPeer = new Peer(undefined, {
+    host: "radio2-yocz.onrender.com",
+    port: 443,
+    path: "/peerjs",
+    secure: true,
+    config: {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    }
+  });
+
+  myPeer.on('open', (id) => {
+    console.log("🟢 PeerJS pronto com ID:", id);
+    if (socket.connected) {
+      statusEl.innerText = `Online como: ${name}`;
+      socket.emit('register', { peerId: id, name });
+    }
+  });
+
+  myPeer.on('call', (call) => {
+    console.log("📞 Recebendo áudio...");
+    call.answer(myStream);
+    call.on('stream', (remoteStream) => {
+      playAudio(remoteStream);
+    });
+  });
+
+}).catch(err => {
+  statusEl.innerText = "Erro: Microfone bloqueado.";
+  console.error(err);
+});
+
+// Atualiza lista de usuários recebida do back-end
+socket.on('presence', (users) => {
+  console.log("👥 Lista de usuários recebida:", users);
+  usersEl.innerHTML = '';
+
+  // Filtra você mesmo usando tanto peerId quanto id
+  const otherUsers = users.filter(u => {
+    const id = u.peerId || u.id;
+    return id !== myPeer?.id;
+  });
+
+  if (otherUsers.length === 0) {
+    usersEl.innerHTML = '<li class="empty-list">Nenhum outro usuário online.</li>';
+    currentTarget = null;
+    return;
+  }
+
+  otherUsers.forEach(user => {
+    const li = document.createElement('li');
+    li.innerText = user.name || "Sem Nome";
+
+    // Pega o ID válido que o seu back-end enviou (peerId ou id)
+    const targetId = user.peerId || user.id;
+
+    if (currentTarget === targetId) {
+      li.classList.add('active');
+    }
+
+    li.onclick = () => {
+      // SALVA O ID CORRETO NO TARGET
+      currentTarget = targetId;
+      console.log("🎯 Alvo selecionado para transmissão:", currentTarget);
+
+      document.querySelectorAll('#users li').forEach(el => el.classList.remove('active'));
+      li.classList.add('active');
+    };
+
+    usersEl.appendChild(li);
+  });
+});
+
+function startCall(peerId) {
+  if (!myStream || !myPeer) return;
+  console.log(`📡 Iniciando transmissão para o Peer: ${peerId}`);
+  const call = myPeer.call(peerId, myStream);
+  
+  call.on('stream', (remoteStream) => {
+    playAudio(remoteStream);
+  });
+  
+  currentCall = call;
+}
+
+function playAudio(stream) {
+  const audio = document.createElement('audio');
+  audio.srcObject = stream;
+  audio.play().catch(e => console.error("Erro no áudio:", e));
+}
+
+function startTalking(e) {
+  if (e) e.preventDefault();
+  
+  // Confirmação via console do valor do target
+  console.log("Botão Apertado. Target atual:", currentTarget);
+
+  if (!currentTarget) {
+    alert("Selecione um usuário na lista primeiro!");
+    return;
+  }
+
+  if (isTalking) return;
+  isTalking = true;
+
+  if (myStream && myStream.getAudioTracks()[0]) {
+    myStream.getAudioTracks()[0].enabled = true;
+  }
+  
+  startCall(currentTarget);
+  talkBtn.classList.add('active');
+  talkBtn.innerText = "TRANSMITINDO";
+}
+
+function stopTalking(e) {
+  if (e) e.preventDefault();
+  if (!isTalking) return;
+  isTalking = false;
+
+  console.log("Botão Solto. Parando transmissão.");
+
+  if (myStream && myStream.getAudioTracks()[0]) {
+    myStream.getAudioTracks()[0].enabled = false;
+  }
+
+  if (currentCall) {
+    currentCall.close();
+    currentCall = null;
+  }
+
+  talkBtn.classList.remove('active');
+  talkBtn.innerText = "FALAR";
+}
+
+talkBtn.addEventListener('pointerdown', startTalking);
+talkBtn.addEventListener('pointerup', stopTalking);
+talkBtn.addEventListener('pointerleave', stopTalking);
+talkBtn.addEventListener('pointercancel', stopTalking);
+talkBtn.addEventListener('contextmenu', e => e.preventDefault());
+</script>
 </body>
 </html>
