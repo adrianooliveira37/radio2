@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radio PTT em Grupo</title>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #0f172a;
+    color: white;
+    margin: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .container {
+    padding: 15px;
+    max-width: 500px;
+    margin: auto;
+  }
+
+  h2 {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  #status {
+    text-align: center;
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 20px;
+    background: #1e293b;
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .user-list-container {
+    background: #111827;
+    border-radius: 12px;
+    padding: 10px;
+    border: 1px solid #374151;
+  }
+
+  .list-title {
+    font-size: 14px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    padding-left: 5px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 35vh;
+    overflow-y: auto;
+  }
+
+  li {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #1e293b;
+    border-radius: 10px;
+    font-size: 16px;
+    border: 1px solid transparent;
+  }
+
+  li:last-child {
+    margin-bottom: 0;
+  }
+
+  .empty-list {
+    text-align: center;
+    color: #64748b;
+    padding: 15px;
+    font-style: italic;
+    background: #1e293b;
+    border-radius: 10px;
+  }
+
+  .ptt-container {
+    position: fixed;
+    bottom: 30px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .ptt {
+    width: 65vw;
+    max-width: 220px;
+    height: 65vw;
+    max-height: 220px;
+    border-radius: 50%;
+    border: 6px solid #450a0a;
+    font-size: 18px;
+    font-weight: bold;
+    background: #dc2626;
+    color: white;
+    cursor: pointer;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    transition: background 0.1s, transform 0.05s;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .ptt:active, .ptt.active {
+    background: #16a34a;
+    border-color: #052e16;
+    transform: scale(0.96);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>📡 Rádio PTT (Grupo)</h2>
+  <div id="status">Conectando ao servidor...</div>
+  
+  <div class="user-list-container">
+    <div class="list-title">Outros Membros na Escuta:</div>
+    <ul id="users">
+      <li class="empty-list">Aguardando conexão...</li>
+    </ul>
+  </div>
+</div>
+
+<div class="ptt-container">
+  <button id="talk" class="ptt">FALAR NO GRUPO</button>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+<script>
+const BACKEND_URL = "https://radio2-yocz.onrender.com";
+
+const socket = io(BACKEND_URL, {
+  transports: ["polling", "websocket"],
+  timeout: 20000,
+  forceNew: true
+});
+
+let myPeer;
+let myStream;
+let activeCalls = []; // Array para guardar todas as chamadas ativas do grupo
+let onlineUsers = []; // Array de usuários online recebidos do backend
+let isTalking = false;
+
+const statusEl = document.getElementById('status');
+const usersEl = document.getElementById('users');
+const talkBtn = document.getElementById('talk');
+
+const name = prompt("Seu nome:") || "Usuário-" + Math.floor(1000 + Math.random() * 9000);
+
+socket.on('connect', () => {
+  console.log("🟢 Socket.io conectado! ID:", socket.id);
+  statusEl.innerText = `Online como: ${name}`;
+  
+  if (myPeer && myPeer.id) {
+    socket.emit('register', { peerId: myPeer.id, name });
+  }
+});
+
+socket.on('connect_error', (err) => {
+  console.error("🔴 Erro de conexão no Socket.io:", err.message);
+  statusEl.innerText = "Erro ao conectar no servidor. Tentando novamente...";
+});
+
+navigator.mediaDevices.getUserMedia({ audio: true })
+.then(stream => {
+  myStream = stream;
+  myStream.getAudioTracks()[0].enabled = false;
+
+  myPeer = new Peer(undefined, {
+    host: "radio2-yocz.onrender.com",
+    port: 443,
+    path: "/peerjs",
+    secure: true,
+    config: {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    }
+  });
+
+  myPeer.on('open', (id) => {
+    console.log("🟢 PeerJS pronto com ID:", id);
+    if (socket.connected) {
+      statusEl.innerText = `Online como: ${name}`;
+      socket.emit('register', { peerId: id, name });
+    }
+  });
+
+  // Receber chamadas de qualquer membro do grupo
+  myPeer.on('call', (call) => {
+    console.log("📞 Recebendo áudio do grupo...");
+    call.answer(myStream);
+    call.on('stream', (remoteStream) => {
+      playAudio(remoteStream);
+    });
+  });
+
+}).catch(err => {
+  statusEl.innerText = "Erro: Microfone bloqueado.";
+  console.error(err);
+});
+
+// Atualiza lista de usuários
+socket.on('presence', (users) => {
+  console.log("👥 Lista de usuários em tempo real:", users);
+  usersEl.innerHTML = '';
+
+  // Filtra para remover você mesmo da lista visual
+  onlineUsers = users.filter(u => {
+    const id = u.peerId || u.id;
+    return id !== myPeer?.id;
+  });
+
+  if (onlineUsers.length === 0) {
+    usersEl.innerHTML = '<li class="empty-list">Nenhum outro membro online.</li>';
+    return;
+  }
+
+  onlineUsers.forEach(user => {
+    const li = document.createElement('li');
+    li.innerText = `🟢 ${user.name || "Sem Nome"}`;
+    usersEl.appendChild(li);
+  });
+});
+
+// Função para transmitir para TODOS os usuários online
+function broadcastToGroup() {
+  if (!myStream || !myPeer) return;
+
+  console.log(`📡 Transmitindo para ${onlineUsers.length} usuários...`);
+  
+  onlineUsers.forEach(user => {
+    const targetId = user.peerId || user.id;
+    if (targetId) {
+      const call = myPeer.call(targetId, myStream);
+      
+      call.on('stream', (remoteStream) => {
+        playAudio(remoteStream);
+      });
+
+      activeCalls.push(call); // Guarda a chamada para encerrar depois
+    }
+  });
+}
+
+function playAudio(stream) {
+  // Evita criar múltiplos elementos de áudio duplicados
+  const existingAudio = document.getElementById(stream.id);
+  if (existingAudio) return;
+
+  const audio = document.createElement('audio');
+  audio.id = stream.id;
+  audio.srcObject = stream;
+  audio.play().catch(e => console.error("Erro ao reproduzir o áudio:", e));
+}
+
+// 🔴 Iniciar fala em grupo
+function startTalking(e) {
+  if (e) e.preventDefault();
+
+  if (onlineUsers.length === 0) {
+    alert("Não há outros usuários online no grupo para ouvir você.");
+    return;
+  }
+
+  if (isTalking) return;
+  isTalking = true;
+
+  // Ativa o microfone
+  if (myStream && myStream.getAudioTracks()[0]) {
+    myStream.getAudioTracks()[0].enabled = true;
+  }
+  
+  // Liga para todo mundo
+  broadcastToGroup();
+
+  talkBtn.classList.add('active');
+  talkBtn.innerText = "TRANSMITINDO AO VIVO";
+}
+
+// 🛑 Parar de falar
+function stopTalking(e) {
+  if (e) e.preventDefault();
+  if (!isTalking) return;
+  isTalking = false;
+
+  console.log("Parando transmissão do grupo.");
+
+  // Desativa o microfone (muta)
+  if (myStream && myStream.getAudioTracks()[0]) {
+    myStream.getAudioTracks()[0].enabled = false;
+  }
+
+  // Desconecta todas as chamadas ativas
+  activeCalls.forEach(call => {
+    if (call.open) {
+      call.close();
+    }
+  });
+  activeCalls = []; // Limpa a lista de chamadas
+
+  talkBtn.classList.remove('active');
+  talkBtn.innerText = "FALAR NO GRUPO";
+}
+
+talkBtn.addEventListener('pointerdown', startTalking);
+talkBtn.addEventListener('pointerup', stopTalking);
+talkBtn.addEventListener('pointerleave', stopTalking);
+talkBtn.addEventListener('pointercancel', stopTalking);
+talkBtn.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+</body>
+</html>
