@@ -1,356 +1,262 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * wss: ws:; sync-xhr: 'none';">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
 
-<title>Radio PTT Profissional</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rádio PTT">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/YGRwTYB/180.png">
 
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #0f172a;
-    color: white;
-    margin: 0;
-    user-select: none;
-    -webkit-user-select: none;
-  }
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https://radio2-yocz.onrender.com https://unpkg.com https://cdn.jsdelivr.net https://cdn.socket.io;
+    connect-src 'self' https://radio2-yocz.onrender.com wss://radio2-yocz.onrender.com;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://cdn.socket.io;
+    style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+    media-src 'self' blob:;
+  ">
 
-  .container {
-    padding: 15px;
-    max-width: 500px;
-    margin: auto;
-  }
-
-  h2 {
-    text-align: center;
-    margin-top: 20px;
-  }
-
-  #status {
-    text-align: center;
-    font-size: 14px;
-    color: #94a3b8;
-    margin-bottom: 20px;
-    background: #1e293b;
-    padding: 8px;
-    border-radius: 8px;
-  }
-
-  .user-list-container {
-    background: #111827;
-    border-radius: 12px;
-    padding: 10px;
-    border: 1px solid #374151;
-  }
-
-  .list-title {
-    font-size: 14px;
-    color: #94a3b8;
-    margin-bottom: 8px;
-    padding-left: 5px;
-  }
-
-  ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    max-height: 35vh;
-    overflow-y: auto;
-  }
-
-  li {
-    padding: 12px;
-    margin-bottom: 8px;
-    background: #1e293b;
-    border-radius: 10px;
-    font-size: 16px;
-    border: 1px solid transparent;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: background 0.3s;
-  }
-
-  li.talking {
-    background: #7f1d1d;
-    border-color: #ef4444;
-    animation: pulse 1.5s infinite;
-  }
-
-  @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
-  }
-
-  li:last-child {
-    margin-bottom: 0;
-  }
-
-  .empty-list {
-    text-align: center;
-    color: #64748b;
-    padding: 15px;
-    font-style: italic;
-    background: #1e293b;
-    border-radius: 10px;
-    display: block;
-  }
-
-  .ptt-container {
-    position: fixed;
-    bottom: 30px;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: center;
-  }
-
-  .ptt {
-    width: 65vw;
-    max-width: 210px;
-    height: 65vw;
-    max-height: 210px;
-    border-radius: 50%;
-    border: 6px solid #450a0a;
-    font-size: 18px;
-    font-weight: bold;
-    background: #dc2626;
-    color: white;
-    cursor: pointer;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    transition: background 0.1s, transform 0.05s;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  .ptt:active, .ptt.active {
-    background: #16a34a;
-    border-color: #052e16;
-    transform: scale(0.96);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  }
-
-  .ptt.busy {
-    background: #4b5563 !important;
-    border-color: #1f2937 !important;
-    color: #94a3b8 !important;
-    cursor: not-allowed;
-    transform: none !important;
-  }
-</style>
+  <title>Radio PTT Profissional</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 
-<body>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col select-none antialiased">
 
-<div class="container">
-  <h2>📡 Rádio PTT (Grupo)</h2>
-  <div id="status">Conectando ao servidor...</div>
-  
-  <div class="user-list-container">
-    <div class="list-title">Membros na Escuta:</div>
-    <ul id="users">
-      <li class="empty-list">Aguardando conexão...</li>
-    </ul>
+  <div class="w-full max-w-md mx-auto px-4 py-6 flex-1 flex flex-col pb-36">
+    <h2 class="text-2xl font-extrabold text-center tracking-tight mb-4 flex items-center justify-center gap-2">
+      <span class="text-blue-500">📡</span> Rádio PTT (Grupo)
+    </h2>
+    
+    <div id="status" class="text-center text-xs font-semibold text-slate-400 bg-slate-800/80 backdrop-blur-sm border border-slate-700/50 py-2.5 px-4 rounded-xl mb-5 shadow-sm">
+      Conectando ao servidor...
+    </div>
+
+    <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-4 flex-1 flex flex-col overflow-hidden shadow-xl">
+      <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 px-1">
+        Membros na Escuta:
+      </div>
+      
+      <ul id="users" class="flex-1 overflow-y-auto space-y-2 max-h-[40vh] pr-1">
+        <li class="text-center text-slate-500 italic py-6 bg-slate-800/50 rounded-xl border border-slate-700/30">
+          Aguardando conexão...
+        </li>
+      </ul>
+    </div>
   </div>
-</div>
 
-<div class="ptt-container">
-  <button id="talk" class="ptt">FALAR NO GRUPO</button>
-</div>
+  <div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-950 via-slate-900/90 to-transparent flex justify-center backdrop-blur-xs">
+    <button id="talk" class="w-48 h-48 rounded-full border-8 border-slate-800 bg-blue-600 hover:bg-blue-500 text-white font-black text-lg tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none">
+      <span>Falar no</span>
+      <span class="text-sm opacity-80">Grupo</span>
+    </button>
+  </div>
 
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
-<script>
-const BACKEND_URL = "https://radio2-yocz.onrender.com";
-
-const socket = io(BACKEND_URL, {
-  transports: ["polling", "websocket"],
-  timeout: 20000,
-  forceNew: true
-});
-
-let myPeer;
-let myStream;
-let activeCalls = [];
-let onlineUsers = [];
-let isTalking = false;
-let isBusy = false;
-
-const statusEl = document.getElementById('status');
-const usersEl = document.getElementById('users');
-const talkBtn = document.getElementById('talk');
-
-const name = prompt("Seu nome:") || "Usuário-" + Math.floor(1000 + Math.random() * 9000);
-
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-function playBeep(freq, duration) {
-  try {
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.value = 0.1;
-    osc.connect(gain);
-    gain.connect(audioContext.destination);
-    osc.start();
-    setTimeout(() => osc.stop(), duration);
-  } catch (e) { console.error(e); }
-}
-
-socket.on('connect', () => {
-  console.log("🟢 Socket.io conectado!");
-  statusEl.innerText = `Online como: ${name}`;
-  if (myPeer && myPeer.id) {
-    socket.emit('register', { peerId: myPeer.id, name });
-  }
-});
-
-socket.on('connect_error', () => {
-  statusEl.innerText = "Erro ao conectar no servidor. Reconectando...";
-});
-
-navigator.mediaDevices.getUserMedia({ audio: true })
-.then(stream => {
-  myStream = stream;
-  myStream.getAudioTracks()[0].enabled = false;
-
-  myPeer = new Peer(undefined, {
-    host: "radio2-yocz.onrender.com",
-    port: 443,
-    path: "/peerjs",
-    secure: true,
-    config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
-  });
-
-  myPeer.on('open', (id) => {
-    console.log("🟢 PeerJS pronto com ID:", id);
-    if (socket.connected) {
-      statusEl.innerText = `Online como: ${name}`;
-      socket.emit('register', { peerId: id, name });
-    }
-  });
-
-  myPeer.on('call', (call) => {
-    call.answer(myStream);
-    call.on('stream', (remoteStream) => {
-      playAudio(remoteStream);
+  <script>
+  // Registro do Service Worker para o PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('🟢 Service Worker ativo!', reg.scope))
+        .catch(err => console.log('🔴 Erro no Service Worker:', err));
     });
-  });
-
-}).catch(err => {
-  statusEl.innerText = "Erro: Microfone bloqueado.";
-});
-
-socket.on('presence', (users) => {
-  usersEl.innerHTML = '';
-  onlineUsers = users.filter(u => (u.peerId || u.id) !== myPeer?.id);
-
-  if (onlineUsers.length === 0) {
-    usersEl.innerHTML = '<li class="empty-list">Nenhum outro membro online.</li>';
-    return;
   }
 
-  onlineUsers.forEach(user => {
-    const li = document.createElement('li');
-    li.id = `user-${user.peerId || user.id}`;
-    
-    if (user.isTalking) {
-      li.classList.add('talking');
-      li.innerHTML = `<span>🎤 <b>${user.name}</b></span> <small>TRANSMITINDO...</small>`;
-    } else {
-      li.innerHTML = `<span>🟢 ${user.name || "Sem Nome"}</span>`;
-    }
-    
-    usersEl.appendChild(li);
+  const BACKEND_URL = "https://radio2-yocz.onrender.com";
+
+  const socket = io(BACKEND_URL, {
+    transports: ["polling", "websocket"],
+    timeout: 20000,
+    forceNew: true
   });
-});
 
-socket.on('user_talking', (data) => {
-  if (data.peerId !== myPeer?.id) {
-    isBusy = data.isTalking;
-    if (isBusy) {
-      talkBtn.classList.add('busy');
-      talkBtn.innerText = `${data.name.toUpperCase()} FALANDO...`;
-    } else {
-      talkBtn.classList.remove('busy');
-      talkBtn.innerText = "FALAR NO GRUPO";
-    }
+  let myPeer;
+  let myStream;
+  let activeCalls = [];
+  let onlineUsers = [];
+  let isTalking = false;
+  let isBusy = false;
+
+  const statusEl = document.getElementById('status');
+  const usersEl = document.getElementById('users');
+  const talkBtn = document.getElementById('talk');
+
+  const name = prompt("Seu nome:") || "Usuário-" + Math.floor(1000 + Math.random() * 9000);
+
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  function playBeep(freq, duration) {
+    try {
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.value = 0.1;
+      osc.connect(gain);
+      gain.connect(audioContext.destination);
+      osc.start();
+      setTimeout(() => osc.stop(), duration);
+    } catch (e) { console.error(e); }
   }
-});
 
-function broadcastToGroup() {
-  if (!myStream || !myPeer) return;
-  onlineUsers.forEach(user => {
-    const targetId = user.peerId || user.id;
-    if (targetId) {
-      const call = myPeer.call(targetId, myStream);
+  socket.on('connect', () => {
+    console.log("🟢 Socket.io conectado!");
+    statusEl.innerText = `Online como: ${name}`;
+    if (myPeer && myPeer.id) {
+      socket.emit('register', { peerId: myPeer.id, name });
+    }
+  });
+
+  socket.on('connect_error', () => {
+    statusEl.innerText = "Erro ao conectar no servidor. Reconectando...";
+  });
+
+  navigator.mediaDevices.getUserMedia({ audio: true })
+  .then(stream => {
+    myStream = stream;
+    myStream.getAudioTracks()[0].enabled = false;
+
+    myPeer = new Peer(undefined, {
+      host: "radio2-yocz.onrender.com",
+      port: 443,
+      path: "/peerjs",
+      secure: true,
+      config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
+    });
+
+    myPeer.on('open', (id) => {
+      console.log("🟢 PeerJS pronto com ID:", id);
+      if (socket.connected) {
+        statusEl.innerText = `Online como: ${name}`;
+        socket.emit('register', { peerId: id, name });
+      }
+    });
+
+    myPeer.on('call', (call) => {
+      call.answer(myStream);
       call.on('stream', (remoteStream) => {
         playAudio(remoteStream);
       });
-      activeCalls.push(call);
+    });
+
+  }).catch(err => {
+    statusEl.innerText = "Erro: Microfone bloqueado.";
+  });
+
+  socket.on('presence', (users) => {
+    usersEl.innerHTML = '';
+    onlineUsers = users.filter(u => (u.peerId || u.id) !== myPeer?.id);
+
+    if (onlineUsers.length === 0) {
+      usersEl.innerHTML = '<li class="text-center text-slate-500 italic py-6 bg-slate-800/50 rounded-xl border border-slate-700/30">Nenhum outro membro online.</li>';
+      return;
+    }
+
+    onlineUsers.forEach(user => {
+      const li = document.createElement('li');
+      li.id = `user-${user.peerId || user.id}`;
+      
+      if (user.isTalking) {
+        li.className = "flex items-center justify-between p-4 bg-red-950/60 border border-red-500/50 rounded-xl text-red-200 animate-pulse font-medium shadow-lg shadow-red-500/10";
+        li.innerHTML = `<span>🎤 <b>${user.name}</b></span> <small class="text-xs font-bold tracking-widest text-red-400 bg-red-900/50 px-2 py-0.5 rounded">TRANSMITINDO</small>`;
+      } else {
+        li.className = "flex items-center justify-between p-4 bg-slate-800 border border-slate-700/60 rounded-xl text-slate-200 font-medium";
+        li.innerHTML = `<span>🟢 ${user.name || "Sem Nome"}</span>`;
+      }
+      
+      usersEl.appendChild(li);
+    });
+  });
+
+  socket.on('user_talking', (data) => {
+    if (data.peerId !== myPeer?.id) {
+      isBusy = data.isTalking;
+      if (isBusy) {
+        talkBtn.className = "w-48 h-48 rounded-full border-8 border-slate-800 bg-slate-700 text-slate-400 font-bold text-base tracking-wider cursor-not-allowed shadow-inner flex flex-col items-center justify-center gap-1 uppercase select-none opacity-60 pointer-events-none";
+        talkBtn.innerHTML = `<span>${data.name}</span><span class="text-sm font-black text-red-400">Falando...</span>`;
+      } else {
+        talkBtn.className = "w-48 h-48 rounded-full border-8 border-slate-800 bg-blue-600 hover:bg-blue-500 text-white font-black text-lg tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none";
+        talkBtn.innerHTML = `<span>Falar no</span><span class="text-sm opacity-80">Grupo</span>`;
+      }
     }
   });
-}
 
-function playAudio(stream) {
-  const existingAudio = document.getElementById(stream.id);
-  if (existingAudio) return;
-
-  const audio = document.createElement('audio');
-  audio.id = stream.id;
-  audio.srcObject = stream;
-  audio.play().catch(e => console.error("Erro no áudio:", e));
-}
-
-function startTalking(e) {
-  if (e) e.preventDefault();
-  if (isBusy || onlineUsers.length === 0 || isTalking) return;
-  isTalking = true;
-
-  playBeep(800, 100);
-
-  if (myStream && myStream.getAudioTracks()[0]) {
-    myStream.getAudioTracks()[0].enabled = true;
-  }
-  
-  broadcastToGroup();
-  socket.emit('talking_state', { isTalking: true, name });
-
-  talkBtn.classList.add('active');
-  talkBtn.innerText = "TRANSMITINDO AO VIVO";
-}
-
-function stopTalking(e) {
-  if (e) e.preventDefault();
-  if (!isTalking) return;
-  isTalking = false;
-
-  playBeep(600, 120);
-
-  if (myStream && myStream.getAudioTracks()[0]) {
-    myStream.getAudioTracks()[0].enabled = false;
+  function broadcastToGroup() {
+    if (!myStream || !myPeer) return;
+    onlineUsers.forEach(user => {
+      const targetId = user.peerId || user.id;
+      if (targetId) {
+        const call = myPeer.call(targetId, myStream);
+        call.on('stream', (remoteStream) => {
+          playAudio(remoteStream);
+        });
+        activeCalls.push(call);
+      }
+    });
   }
 
-  activeCalls.forEach(call => { if (call.open) call.close(); });
-  activeCalls = [];
+  function playAudio(stream) {
+    const existingAudio = document.getElementById(stream.id);
+    if (existingAudio) return;
 
-  socket.emit('talking_state', { isTalking: false, name });
+    const audio = document.createElement('audio');
+    audio.id = stream.id;
+    audio.srcObject = stream;
+    audio.play().catch(e => console.error("Erro no áudio:", e));
+  }
 
-  talkBtn.classList.remove('active');
-  talkBtn.innerText = "FALAR NO GRUPO";
-}
+  function startTalking() {
+    if (isBusy || onlineUsers.length === 0 || isTalking) return;
+    isTalking = true;
 
-talkBtn.addEventListener('pointerdown', startTalking);
-talkBtn.addEventListener('pointerup', stopTalking);
-talkBtn.addEventListener('pointerleave', stopTalking);
-talkBtn.addEventListener('pointercancel', stopTalking);
-talkBtn.addEventListener('contextmenu', e => e.preventDefault());
-</script>
+    playBeep(800, 100);
+
+    if (myStream && myStream.getAudioTracks()[0]) {
+      myStream.getAudioTracks()[0].enabled = true;
+    }
+    
+    broadcastToGroup();
+    socket.emit('talking_state', { isTalking: true, name });
+
+    talkBtn.className = "w-48 h-48 rounded-full border-8 border-emerald-900 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none animate-pulse";
+    talkBtn.innerHTML = `<span>Transmitindo</span><span class="text-xs font-bold text-emerald-100 bg-emerald-700/60 px-2 py-0.5 rounded mt-1">Ao Vivo</span>`;
+  }
+
+  function stopTalking() {
+    if (!isTalking) return;
+    isTalking = false;
+
+    playBeep(600, 120);
+
+    if (myStream && myStream.getAudioTracks()[0]) {
+      myStream.getAudioTracks()[0].enabled = false;
+    }
+
+    activeCalls.forEach(call => { if (call.open) call.close(); });
+    activeCalls = [];
+
+    socket.emit('talking_state', { isTalking: false, name });
+
+    talkBtn.className = "w-48 h-48 rounded-full border-8 border-slate-800 bg-blue-600 hover:bg-blue-500 text-white font-black text-lg tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none";
+    talkBtn.innerHTML = `<span>Falar no</span><span class="text-sm opacity-80">Grupo</span>`;
+  }
+
+  talkBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (isTalking) {
+      stopTalking();
+    } else {
+      startTalking();
+    }
+  });
+
+  talkBtn.addEventListener('contextmenu', e => e.preventDefault());
+  </script>
 </body>
 </html>
