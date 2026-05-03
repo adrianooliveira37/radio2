@@ -1,0 +1,21 @@
+{
+  "short_name": "Rádio PTT",
+  "name": "Rádio PTT Profissional",
+  "icons": [
+    {
+      "src": "launchericon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "launchericon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait"
+}

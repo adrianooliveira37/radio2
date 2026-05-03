@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rádio PTT">
+  <link rel="apple-touch-icon" href="https://i.ibb.co/YGRwTYB/180.png">
+
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self' https://radio2-yocz.onrender.com https://unpkg.com https://cdn.jsdelivr.net https://cdn.socket.io;
     connect-src 'self' https://radio2-yocz.onrender.com wss://radio2-yocz.onrender.com;
@@ -21,7 +29,7 @@
 
   <div class="w-full max-w-md mx-auto px-4 py-6 flex-1 flex flex-col pb-36">
     <h2 class="text-2xl font-extrabold text-center tracking-tight mb-4 flex items-center justify-center gap-2">
-      <span class="text-blue-500">📡</span> Fenix PTT
+      <span class="text-blue-500">📡</span> Rádio PTT (Grupo)
     </h2>
     
     <div id="status" class="text-center text-xs font-semibold text-slate-400 bg-slate-800/80 backdrop-blur-sm border border-slate-700/50 py-2.5 px-4 rounded-xl mb-5 shadow-sm">
@@ -52,6 +60,15 @@
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
   <script>
+  // Registro do Service Worker para o PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('🟢 Service Worker ativo!', reg.scope))
+        .catch(err => console.log('🔴 Erro no Service Worker:', err));
+    });
+  }
+
   const BACKEND_URL = "https://radio2-yocz.onrender.com";
 
   const socket = io(BACKEND_URL, {
@@ -161,11 +178,9 @@
     if (data.peerId !== myPeer?.id) {
       isBusy = data.isTalking;
       if (isBusy) {
-        // Altera o estado do botão para OCUPADO
         talkBtn.className = "w-48 h-48 rounded-full border-8 border-slate-800 bg-slate-700 text-slate-400 font-bold text-base tracking-wider cursor-not-allowed shadow-inner flex flex-col items-center justify-center gap-1 uppercase select-none opacity-60 pointer-events-none";
         talkBtn.innerHTML = `<span>${data.name}</span><span class="text-sm font-black text-red-400">Falando...</span>`;
       } else {
-        // Volta para o estado PRONTO PARA FALAR
         talkBtn.className = "w-48 h-48 rounded-full border-8 border-slate-800 bg-blue-600 hover:bg-blue-500 text-white font-black text-lg tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none";
         talkBtn.innerHTML = `<span>Falar no</span><span class="text-sm opacity-80">Grupo</span>`;
       }
@@ -209,7 +224,6 @@
     broadcastToGroup();
     socket.emit('talking_state', { isTalking: true, name });
 
-    // Estilo TRANSMITINDO AO VIVO
     talkBtn.className = "w-48 h-48 rounded-full border-8 border-emerald-900 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none animate-pulse";
     talkBtn.innerHTML = `<span>Transmitindo</span><span class="text-xs font-bold text-emerald-100 bg-emerald-700/60 px-2 py-0.5 rounded mt-1">Ao Vivo</span>`;
   }
@@ -229,12 +243,10 @@
 
     socket.emit('talking_state', { isTalking: false, name });
 
-    // Volta para o estilo padrão PRONTO
     talkBtn.className = "w-48 h-48 rounded-full border-8 border-slate-800 bg-blue-600 hover:bg-blue-500 text-white font-black text-lg tracking-wider cursor-pointer shadow-2xl transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 uppercase select-none";
     talkBtn.innerHTML = `<span>Falar no</span><span class="text-sm opacity-80">Grupo</span>`;
   }
 
-  // Alternador de clique (Modo Toggle)
   talkBtn.addEventListener('click', (e) => {
     e.preventDefault();
     if (isTalking) {
@@ -244,7 +256,6 @@
     }
   });
 
-  // Prevenir comportamento padrão de contexto no mobile
   talkBtn.addEventListener('contextmenu', e => e.preventDefault());
   </script>
 </body>
